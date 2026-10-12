@@ -25,12 +25,12 @@ footer{border-top:1px solid var(--line);margin-top:35px;padding-top:18px;display
 </head>
 <body>
 <div class="shell">
-<header class="topbar"><div class="brand"><div class="brand-mark">P</div><div>POLYTRACK<small>TEAM TIMING TOWER</small></div></div><div class="status"><span class="dot"></span><span id="syncLabel">LOCAL PREVIEW · SAVES ON THIS DEVICE</span></div></header>
+<header class="topbar"><div class="brand"><div class="brand-mark">P</div><div>POLYTRACK<small>TEAM TIMING TOWER</small></div></div><div class="status"><span class="dot"></span><span id="syncLabel">CONNECTING TO GOOGLE SHEETS…</span></div></header>
 <nav class="nav" aria-label="Main navigation">
 <button class="active" data-page="overview">Overview</button><button data-page="records">Track records</button><button data-page="drivers">Drivers</button><button data-page="submit">Submit a time</button><button data-page="review">Review queue <span id="pendingCount"></span></button>
 </nav>
 <main id="app"></main>
-<footer><span>POLYTRACK TIMING TOWER · TEAM RECORDS</span><span>Prototype build 01 · Shared cloud sync not connected yet</span></footer>
+<footer><span>POLYTRACK TIMING TOWER · TEAM RECORDS</span><span>LIVE SHEET RECORDS · SUBMISSIONS ARE STILL LOCAL-ONLY</span></footer>
 </div>
 <div class="modal-backdrop" id="modal"><div class="modal"><h2 id="modalTitle">Admin review</h2><p id="modalText">This prototype stores data in this browser only.</p><div class="form-field"><label for="adminCode">Local review code</label><input class="field" id="adminCode" type="password" placeholder="Enter review code"></div><div class="actions" style="margin-top:16px"><button class="btn primary" id="modalConfirm">Continue</button><button class="btn" id="modalCancel">Cancel</button></div></div></div>
 <div class="toast" id="toast"></div>
@@ -56,7 +56,7 @@ function overview(){const s=stats(),p=state.submissions.length;return `<section 
 <div class="stats"><div class="stat"><label>Tracks logged</label><strong>${s.trackCount}</strong><em>18 legacy + 17 current</em></div><div class="stat"><label>Times on file</label><strong>${s.timeCount}</strong><em>Imported from your workbook</em></div><div class="stat"><label>Team records</label><strong>${s.records}</strong><em>Fastest recorded lap per track</em></div><div class="stat"><label>Awaiting review</label><strong>${state.submissions.length}</strong><em>${p?"Pending team approval":"Queue is clear"}</em></div></div>
 <div class="section-head"><div><h2>Latest record board</h2><p>A quick look at the tracks and their current fastest times.</p></div><button class="btn" onclick="setPage('records')">All ${s.trackCount} tracks →</button></div>${timeTable(state.tracks.filter(t=>bestOf(t)).sort((a,b)=>bestOf(a).time-bestOf(b).time).slice(0,6))}
 <div class="section-head"><div><h2>Drivers' championship</h2><p>Track-record count, not total number of laps.</p></div><button class="btn" onclick="setPage('drivers')">Driver stats →</button></div>${driverCards()}
-<div class="notice" style="margin-top:18px"><strong>Prototype note:</strong> this version saves to the browser you're using. Cloud sync, secure team login, and real multi-device submissions will be connected after we confirm which hosting services work on school Chromebooks.</div>`}
+<div class="notice" style="margin-top:18px"><strong>Live record board:</strong> track names and lap times load from the published Google Sheet. To update official records, edit the sheet. Submit and review actions below are still saved only in this browser and do not write back to Google Sheets.</div>`}
 function records(){return `<div class="section-head"><div><h2>Track records</h2><p>Fastest valid submitted time wins. Lower time is better.</p></div><div class="tools"><input class="field" id="trackSearch" placeholder="Search tracks…" value="${esc(searchTerm)}"><select class="field" id="seriesSelect"><option ${seriesFilter==="All"?"selected":""}>All</option><option ${seriesFilter==="Legacy"?"selected":""}>Legacy</option><option ${seriesFilter==="Current"?"selected":""}>Current</option></select><select class="field" id="sortSelect"><option value="name" ${sortMode==="name"?"selected":""}>Track order</option><option value="fastest" ${sortMode==="fastest"?"selected":""}>Fastest lap</option><option value="records" ${sortMode==="records"?"selected":""}>Most times</option></select></div></div><div id="recordsTable">${timeTable(trackRows())}</div><p class="help" style="margin-top:10px">Green times are the fastest on that track. Missing times are left blank, not counted as zero.</p>`}
 function driverCards(){const s=stats(),max=Math.max(1,...Object.values(s.counts));return `<div class="driver-grid">${drivers.map((d,i)=>{let own=state.tracks.reduce((n,t)=>n+(bestOf(t)?.name===d?1:0),0);let entered=state.tracks.reduce((n,t)=>n+(t.times[d]!=null?1:0),0);return `<article class="driver-card"><div class="driver-top"><div class="big-avatar">${d[0]}</div><span class="series-tag">DRIVER 0${i+1}</span></div><h3>${d}</h3><p>${entered} track times recorded</p><div class="driver-number">${own} <small>track records</small></div><div class="bar"><span style="width:${own/max*100}%"></span></div></article>`}).join("")}</div>`}
 function driversPage(){return `<div class="section-head"><div><h2>Driver standings</h2><p>Who currently holds the most track records?</p></div></div>${driverCards()}<div class="section-head"><div><h2>Records by driver</h2><p>Each track contributes one record to its fastest driver.</p></div></div><div class="table-wrap"><table style="min-width:400px"><thead><tr><th>Position</th><th>Driver</th><th>Track records</th><th>Times submitted / on file</th></tr></thead><tbody>${drivers.slice().sort((a,b)=>stats().counts[b]-stats().counts[a]).map((d,i)=>`<tr><td>${i===0?"🏆":`#${i+1}`}</td><td><div class="holder"><span class="avatar">${d[0]}</span>${d}</div></td><td class="best">${stats().counts[d]}</td><td>${state.tracks.reduce((n,t)=>n+(t.times[d]!=null?1:0),0)}</td></tr>`).join("")}</tbody></table></div>`}
@@ -73,6 +73,73 @@ function approve(id){const s=state.submissions.find(x=>x.id===id);if(!s)return;c
 function reject(id){state.submissions=state.submissions.filter(x=>x.id!==id);save();toast("Submission rejected.");render()}
 function showAdminInfo(){document.getElementById("modalTitle").textContent="Prototype review mode";document.getElementById("modalText").textContent="There is no secure admin password in this prototype. Review actions are local-only until real authentication is connected.";document.getElementById("adminCode").style.display="none";document.getElementById("modalConfirm").textContent="Got it";document.getElementById("modal").classList.add("open")}
 document.getElementById("modalCancel").addEventListener("click",()=>document.getElementById("modal").classList.remove("open"));document.getElementById("modalConfirm").addEventListener("click",()=>document.getElementById("modal").classList.remove("open"));
+// Live Google Sheets loader for the side-by-side Legacy / Current record-board layout.
+const GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTOZzeC6FYw-i1WHJabZSH5_PFtEjOk7iYbS6TCcYI3F2S1tZel0ccbuZWCtadd_UGmfwjLfbhL5_kG/pub?output=csv";
+function parseCSV(text){
+  const rows=[]; let row=[], cell="", quoted=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(quoted){if(ch==='"'&&text[i+1]==='"'){cell+='"';i++;}else if(ch==='"')quoted=false;else cell+=ch;}
+    else if(ch==='"')quoted=true;
+    else if(ch===','){row.push(cell);cell='';}
+    else if(ch==='\n'){row.push(cell.replace(/\r$/,''));rows.push(row);row=[];cell='';}
+    else cell+=ch;
+  }
+  if(cell.length||row.length){row.push(cell.replace(/\r$/,''));rows.push(row);}
+  return rows;
+}
+function cleanNumber(value){
+  if(value==null)return null;
+  const s=String(value).trim();
+  if(!s||s==='—'||s==='-'||/^#(N\/A|VALUE!|REF!|DIV\/0!)/i.test(s))return null;
+  const n=Number(s.replace(/,/g,''));
+  return Number.isFinite(n)&&n>0?n:null;
+}
+function sheetTracksFromCSV(csv){
+  const rows=parseCSV(csv);
+  let titleRow=-1;
+  for(let i=0;i<Math.min(rows.length,12);i++){
+    const cells=rows[i].map(x=>String(x||'').trim().toLowerCase());
+    if(cells.some(x=>x.includes('legacy polytrack'))&&cells.some(x=>x.includes('current polytrack'))){titleRow=i;break;}
+  }
+  if(titleRow<0)throw new Error('Could not find the LEGACY POLYTRACK and CURRENT POLYTRACK headings in the published CSV.');
+  const result=[];
+  // Expected sheet format: Legacy track + four drivers + record columns, blank spacer, then Current track + four drivers + record columns.
+  for(let r=titleRow+1;r<rows.length;r++){
+    const cells=rows[r];
+    const add=(name,series,offset,index)=>{
+      name=String(name||'').trim();
+      if(!name||/^(track|school record|record holder)$/i.test(name))return;
+      const times={};
+      drivers.forEach((driver,j)=>{const t=cleanNumber(cells[offset+j]);if(t!=null)times[driver]=t;});
+      if(!Object.keys(times).length)return;
+      result.push({id:(series==='Legacy'?'L':'C')+index,name,series,times});
+    };
+    // Header rows have no track names in the first / eighth columns. Actual data follows.
+    add(cells[0],'Legacy',1,result.filter(t=>t.series==='Legacy').length+1);
+    add(cells[7],'Current',8,result.filter(t=>t.series==='Current').length+1);
+  }
+  if(!result.length)throw new Error('The published sheet was found, but no track rows with lap times were detected.');
+  return result;
+}
+async function loadGoogleSheet(){
+  const label=document.getElementById('syncLabel');
+  try{
+    const response=await fetch(GOOGLE_SHEET_CSV+'&_='+Date.now(),{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const csv=await response.text();
+    const tracks=sheetTracksFromCSV(csv);
+    state.tracks=tracks;
+    // Keep local submissions, approvals and history, but update the live record data from the sheet.
+    try{localStorage.setItem(storeKey,JSON.stringify(state));}catch(e){}
+    if(label)label.textContent='LIVE GOOGLE SHEETS DATA · '+tracks.length+' TRACKS';
+    render();
+  }catch(error){
+    if(label)label.textContent='SHEET OFFLINE · USING SAVED SNAPSHOT';
+    console.warn('Google Sheets sync failed:',error);
+  }
+}
 render();
+loadGoogleSheet();
 </script>
 </body></html>
